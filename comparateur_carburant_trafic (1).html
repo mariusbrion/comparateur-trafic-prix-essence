@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyse Comparative : Carburants vs Trafic Routier</title>
+    <!-- Tailwind CSS pour un design moderne et responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter pour une excellente lisibilité -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js pour des graphiques fluides et interactifs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse pour lire les fichiers CSV de façon robuste -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Style personnalisé pour les barres de défilement horizontales et verticales */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="h-full text-slate-800">
+
+<div class="min-h-full flex flex-col">
+    <!-- Header principal -->
+    <header class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-indigo-600 rounded-xl shadow-inner shadow-indigo-400/50">
+                    <!-- Icone SVG de graphique + voiture -->
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-extrabold tracking-tight">EcoTrafic Link</h1>
+                    <p class="text-xs text-indigo-200 mt-0.5">Corrélations entre le coût des carburants et les pics de fréquentation routière</p>
+                </div>
+            </div>
+            <!-- Bouton Démo Rapide -->
+            <div>
+                <button id="btn-demo" class="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold rounded-xl shadow-lg shadow-emerald-950/20 hover:scale-[1.02] transition-all duration-200">
+                    <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    <span>Simuler Janvier à Juillet (Données démo)</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <!-- Zone d'alertes / notifications -->
+        <div id="notification-zone" class="hidden mb-6 p-4 rounded-xl border flex items-center justify-between gap-3 transition-all">
+            <div class="flex items-center gap-3">
+                <span id="notification-icon" class="p-2 rounded-lg"></span>
+                <p id="notification-text" class="text-sm font-medium"></p>
+            </div>
+            <button onclick="hideNotification()" class="text-slate-400 hover:text-slate-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- COLONNE GAUCHE : Configuration & Importation -->
+            <div class="space-y-6 lg:col-span-1">
+                <!-- Bloc 1 : Importation des fichiers CSV -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        Importation des données
+                    </h2>
+
+                    <!-- Upload Trafic -->
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">1. Fichier Trafic (Horaire)</label>
+                        <div id="drop-traffic" class="group relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 transition-all text-center cursor-pointer bg-slate-50 hover:bg-indigo-50/20">
+                            <input type="file" id="input-traffic" accept=".csv" class="hidden" />
+                            <div class="space-y-1">
+                                <svg id="icon-status-traffic" class="mx-auto h-8 w-8 text-slate-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <p class="text-xs font-medium text-slate-700" id="text-status-traffic">Glissez ou cliquez pour charger</p>
+                                <p class="text-[10px] text-slate-400">Colonnes exigées : count_point_id, dt, q, semaine_ref</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Carburant -->
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">2. Fichier Carburant (Hebdo)</label>
+                        <div id="drop-fuel" class="group relative border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 transition-all text-center cursor-pointer bg-slate-50 hover:bg-indigo-50/20">
+                            <input type="file" id="input-fuel" accept=".csv" class="hidden" />
+                            <div class="space-y-1">
+                                <svg id="icon-status-fuel" class="mx-auto h-8 w-8 text-slate-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                </svg>
+                                <p class="text-xs font-medium text-slate-700" id="text-status-fuel">Glissez ou cliquez pour charger</p>
+                                <p class="text-[10px] text-slate-400">Colonnes exigées : Semaine, types de carburants...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bloc 2 : Paramètres & Filtrages -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
+                    <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                        <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                        Filtres & Sélection
+                    </h2>
+
+                    <!-- Sélecteur de Carburant -->
+                    <div class="space-y-1.5">
+                        <label for="select-fuel" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Type de carburant à analyser</label>
+                        <select id="select-fuel" class="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium text-slate-700">
+                            <option value="">(En attente de fichier carburant)</option>
+                        </select>
+                    </div>
+
+                    <!-- Config Heures de Pointe -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Créneaux des pics (Heures)</label>
+                            <button onclick="resetPeakHours()" class="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold hover:underline">Réinitialiser (Pics standards)</button>
+                        </div>
+                        
+                        <!-- Grille interactive des 24 heures -->
+                        <div class="grid grid-cols-6 gap-1.5" id="hours-grid">
+                            <!-- Généré par JS de 0h à 23h -->
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1 italic">Sélectionnez les heures pour filtrer le volume moyen de trafic calculé par semaine.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNE DROITE : Visualisation des courbes & Analyses -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Zone du Graphique Comparatif Principal -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-slate-100 pb-4">
+                        <div>
+                            <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">Courbes Comparatives</h2>
+                            <p class="text-xs text-slate-500 mt-0.5">Évolution hebdomadaire moyenne : Trafic en heures de pointe vs prix du carburant</p>
+                        </div>
+                        
+                        <!-- Options de redimensionnement et Légende -->
+                        <div class="flex flex-wrap items-center gap-3">
+                            <!-- Toggle Scroll / Fit -->
+                            <div class="flex bg-slate-100 p-1 rounded-lg text-xs font-medium text-slate-600">
+                                <button id="btn-view-scroll" onclick="setViewMode('scroll')" class="px-2.5 py-1.5 rounded-md transition-all">
+                                    Vue Défilante (Large)
+                                </button>
+                                <button id="btn-view-fit" onclick="setViewMode('fit')" class="px-2.5 py-1.5 rounded-md transition-all">
+                                    Ajusté
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Indication des axes -->
+                    <div class="flex items-center justify-between mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3.5 h-3.5 rounded bg-indigo-600 inline-block"></span>
+                            <span class="font-semibold text-indigo-900">Axe gauche : Trafic moyen (véhicules / h)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-3.5 h-3.5 rounded bg-rose-500 inline-block"></span>
+                            <span class="font-semibold text-rose-900">Axe droit : Prix (€ / Litre)</span>
+                        </div>
+                    </div>
+
+                    <!-- Conteneur Graphique Principal avec défilement horizontal robuste -->
+                    <div class="relative w-full border border-slate-100 rounded-xl bg-slate-50/40 p-2">
+                        <div class="overflow-x-auto w-full" id="chart-scroll-wrapper">
+                            <div id="chart-parent-container" class="h-[420px] relative transition-all duration-300">
+                                <canvas id="chart-comparison"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Overlay si pas de données -->
+                        <div id="chart-placeholder" class="absolute inset-0 bg-slate-50/95 rounded-xl flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-200 transition-all duration-300">
+                            <div class="p-4 bg-white rounded-2xl shadow-md mb-3 text-slate-300">
+                                <svg class="w-12 h-12 text-slate-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+                            </div>
+                            <h3 class="text-sm font-semibold text-slate-700">Aucune donnée chargée</h3>
+                            <p class="text-xs text-slate-400 max-w-sm mt-1">Importez vos fichiers de Janvier à Juillet ou cliquez sur "Simuler Janvier à Juillet (Données démo)" pour tester le rendu spacieux et défilant.</p>
+                        </div>
+                    </div>
+                    
+                    <div id="scroll-tip" class="text-[11px] text-slate-400 mt-2 flex items-center justify-center gap-1">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                        <span>Astuce : Utilisez la molette ou glissez horizontalement pour faire défiler les semaines chronologiquement.</span>
+                    </div>
+                </div>
+
+                <!-- Tableau de bord statistique & Profil Horaire -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Graphique du profil horaire moyen (Bonus visuel) -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+                        <div class="mb-3">
+                            <h3 class="text-sm font-bold text-slate-900 tracking-tight">Profil Journalier Moyen</h3>
+                            <p class="text-[11px] text-slate-500">Moyenne de passage par heure de la journée (les colonnes foncées représentent vos pics d'heures choisis)</p>
+                        </div>
+                        <div class="relative w-full h-[180px]">
+                            <canvas id="chart-hourly-profile"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Carte de Corrélation & Analyse -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between space-y-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900 tracking-tight">Indice de Corrélation de Pearson</h3>
+                            <p class="text-[11px] text-slate-500">Calcul statistique analysant le niveau de dépendance entre le prix à la pompe et le trafic.</p>
+                        </div>
+
+                        <!-- Résultat Corrélation -->
+                        <div id="correlation-display" class="py-3 px-4 rounded-xl bg-slate-50 flex flex-col items-center justify-center text-center">
+                            <span class="text-2xl font-black text-slate-300" id="corr-value">- - -</span>
+                            <span class="text-xs font-semibold text-slate-500 mt-1" id="corr-label">Aucune donnée comparée</span>
+                        </div>
+
+                        <!-- Explication dynamique de l'analyse -->
+                        <p id="corr-explanation" class="text-xs text-slate-500 leading-relaxed italic text-center">
+                            Importez ou simulez des données pour observer comment notre algorithme évalue l'impact financier sur le comportement routier.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section Table de Données et Téléchargements -->
+        <div class="mt-8 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hidden" id="table-card">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-slate-100">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900">Données Consolidées par Semaine</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Données agrégées ayant servi à l'élaboration du comparateur graphique</p>
+                </div>
+                <button onclick="exportAlignedToCSV()" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 font-semibold text-xs rounded-xl transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Télécharger la synthèse (.csv)
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100 text-sm">
+                    <thead>
+                        <tr class="text-left font-semibold text-slate-500 uppercase tracking-wider text-xs bg-slate-50">
+                            <th class="p-3">Semaine ISO</th>
+                            <th class="p-3">Moyenne Trafic (Heures de pointe)</th>
+                            <th class="p-3">Évolution Hebdomadaire Trafic</th>
+                            <th class="p-3" id="th-fuel-header">Prix Carburant (€/L)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-slate-700" id="table-aligned-body">
+                        <!-- Généré en JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Pied de page -->
+    <footer class="bg-slate-900 text-slate-400 text-xs py-8 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-2">
+            <p class="font-medium text-slate-300">EcoTrafic Link &copy; 2026 - Conçu pour l'analyse des flux d'énergies et de transports</p>
+            <p>Cet outil traite exclusivement vos fichiers localement au sein de votre navigateur, garantissant la confidentialité absolue de vos données.</p>
+        </div>
+    </footer>
+</div>
+
+<script>
+// --- STREAMING_CHUNK: Setting up state variables and configurations... ---
+// --- CONFIGURATION DU STATE ---
+const state = {
+    trafficRaw: [],      // Contenu brut CSV Trafic
+    fuelRaw: [],         // Contenu brut CSV Carburant
+    fuelColumns: [],     // Colonnes de carburants trouvées
+    selectedFuel: '',    // Nom de la colonne de carburant sélectionnée
+    peakHours: [7, 8, 9, 16, 17, 18], // Plages de pointe par défaut (7-9h inclus, 16-18h inclus)
+    alignedData: [],     // Données croisées par semaine
+    trafficWeekMap: {},  // { "2026-W02": { sum: X, count: Y } }
+    hourlyProfile: Array(24).fill(0).map(() => ({ sum: 0, count: 0 })), // Pour graphe horaire global
+    viewMode: 'scroll',   // Mode d'affichage graphique : 'scroll' (large et défilant) ou 'fit' (adapté à l'écran)
+    charts: {
+        comparison: null,
+        hourlyProfile: null
+    }
+};
+
+// --- INITIALISATION AU CHARGEMENT DE LA PAGE ---
+window.onload = function() {
+    renderHoursGrid();
+    setupEventListeners();
+    setupDragAndDrop();
+    setViewMode('scroll'); // Par défaut, affichage défilant large
+};
+
+// --- GESTIONNAIRES D'ÉVÉNEMENTS ---
+function setupEventListeners() {
+    // Changement d'inputs de fichiers
+    document.getElementById('input-traffic').addEventListener('change', (e) => handleFileUpload(e.target.files[0], 'traffic'));
+    document.getElementById('input-fuel').addEventListener('change', (e) => handleFileUpload(e.target.files[0], 'fuel'));
+
+    // Changement de sélection carburant
+    document.getElementById('select-fuel').addEventListener('change', (e) => {
+        state.selectedFuel = e.target.value;
+        processAndRender();
+    });
+
+    // Chargement Démo
+    document.getElementById('btn-demo').addEventListener('click', loadDemoDataJanToJuly);
+}
+
+// --- CONFIGURATION DE L'AFFICHAGE DU GRAPH (SCROLL VS FIT) ---
+function setViewMode(mode) {
+    state.viewMode = mode;
+    
+    const btnScroll = document.getElementById('btn-view-scroll');
+    const btnFit = document.getElementById('btn-view-fit');
+    const tip = document.getElementById('scroll-tip');
+
+    if (mode === 'scroll') {
+        btnScroll.className = "px-3 py-1.5 rounded-md bg-white text-indigo-700 shadow-sm font-semibold text-xs";
+        btnFit.className = "px-3 py-1.5 rounded-md text-slate-500 hover:text-slate-900 text-xs";
+        if (tip) tip.classList.remove('hidden');
+    } else {
+        btnScroll.className = "px-3 py-1.5 rounded-md text-slate-500 hover:text-slate-900 text-xs";
+        btnFit.className = "px-3 py-1.5 rounded-md bg-white text-indigo-700 shadow-sm font-semibold text-xs";
+        if (tip) tip.classList.add('hidden');
+    }
+
+    // Réajuste la largeur du graphique si des données sont présentes
+    adjustChartDimensions();
+    if (state.charts.comparison) {
+        state.charts.comparison.resize();
+        state.charts.comparison.update();
+    }
+}
+
+// Adapte les dimensions réelles du canvas
+function adjustChartDimensions() {
+    const parentContainer = document.getElementById('chart-parent-container');
+    if (!parentContainer) return;
+
+    if (state.viewMode === 'scroll' && state.alignedData.length > 0) {
+        // Environ 60px par semaine de données pour que l'axe X respire
+        // Par exemple 26 semaines = 1560px de largeur
+        const calculatedWidth = Math.max(1000, state.alignedData.length * 60);
+        parentContainer.style.width = `${calculatedWidth}px`;
+    } else {
+        parentContainer.style.width = '100%';
+    }
+}
+
+// --- STREAMING_CHUNK: Drag and drop event listeners configuration... ---
+// --- SETUP DRAG & DROP DES CSV ---
+function setupDragAndDrop() {
+    const drops = [
+        { id: 'drop-traffic', key: 'traffic', inputId: 'input-traffic' },
+        { id: 'drop-fuel', key: 'fuel', inputId: 'input-fuel' }
+    ];
+
+    drops.forEach(({ id, key, inputId }) => {
+        const zone = document.getElementById(id);
+        const input = document.getElementById(inputId);
+
+        zone.addEventListener('click', () => input.click());
+
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zone.classList.add('border-indigo-500', 'bg-indigo-50/40');
+        });
+
+        zone.addEventListener('dragleave', () => {
+            zone.classList.remove('border-indigo-500', 'bg-indigo-50/40');
+        });
+
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zone.classList.remove('border-indigo-500', 'bg-indigo-50/40');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileUpload(e.dataTransfer.files[0], key);
+            }
+        });
+    });
+}
+
+// --- RENDU DE LA GRILLE DES 24 HEURES ---
+function renderHoursGrid() {
+    const grid = document.getElementById('hours-grid');
+    grid.innerHTML = '';
+    
+    for (let h = 0; h < 24; h++) {
+        const isPeak = state.peakHours.includes(h);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerText = `${h}h`;
+        btn.className = `py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+            isPeak 
+            ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm hover:bg-indigo-700' 
+            : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
+        }`;
+        
+        btn.onclick = () => toggleHour(h);
+        grid.appendChild(btn);
+    }
+}
+
+// Bascule d'une heure de pointe
+function toggleHour(h) {
+    if (state.peakHours.includes(h)) {
+        state.peakHours = state.peakHours.filter(x => x !== h);
+    } else {
+        state.peakHours.push(h);
+        state.peakHours.sort((a, b) => a - b);
+    }
+    renderHoursGrid();
+    processAndRender();
+}
+
+function resetPeakHours() {
+    state.peakHours = [7, 8, 9, 16, 17, 18];
+    renderHoursGrid();
+    processAndRender();
+}
+
+// --- STREAMING_CHUNK: Notifications and alert utilities... ---
+// --- NOTIFICATIONS ---
+function showNotification(text, type = 'success') {
+    const zone = document.getElementById('notification-zone');
+    const textEl = document.getElementById('notification-text');
+    const iconEl = document.getElementById('notification-icon');
+    
+    textEl.innerText = text;
+    zone.className = "mb-6 p-4 rounded-xl border flex items-center justify-between gap-3 transition-all";
+    
+    if (type === 'success') {
+        zone.classList.add('bg-emerald-50', 'border-emerald-200', 'text-emerald-800');
+        iconEl.className = "p-2 rounded-lg bg-emerald-100 text-emerald-600";
+        iconEl.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
+    } else if (type === 'error') {
+        zone.classList.add('bg-rose-50', 'border-rose-200', 'text-rose-800');
+        iconEl.className = "p-2 rounded-lg bg-rose-100 text-rose-600";
+        iconEl.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`;
+    } else {
+        zone.classList.add('bg-indigo-50', 'border-indigo-200', 'text-indigo-800');
+        iconEl.className = "p-2 rounded-lg bg-indigo-100 text-indigo-600";
+        iconEl.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+    }
+    
+    zone.classList.remove('hidden');
+}
+
+function hideNotification() {
+    document.getElementById('notification-zone').classList.add('hidden');
+}
+
+// --- CALCUL SEMAINE ISO (UTC) ---
+function getISOWeekFromUTCDate(date) {
+    if (!date || isNaN(date.getTime())) return null;
+    const tempDate = new Date(date.getTime());
+    const day = tempDate.getUTCDay() || 7;
+    tempDate.setUTCDate(tempDate.getUTCDate() + 4 - day);
+    const yearStart = new Date(Date.UTC(tempDate.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
+    return `${tempDate.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+// --- EXTRACTION SECURISEE DE L'HEURE LOCALE ---
+function getLocalHour(dtString) {
+    if (!dtString) return null;
+    const normalized = dtString.replace('T', ' ');
+    const parts = normalized.split(' ');
+    if (parts.length < 2) return null;
+    const timePart = parts[1]; // Ex: "08:00:00+01:00"
+    const hms = timePart.split(':');
+    if (hms.length < 1) return null;
+    const h = parseInt(hms[0], 10);
+    return isNaN(h) ? null : h;
+}
+
+// --- SEMAINE/DATE ASSOCIEE A LA LIGNE ---
+function getLocalDateString(row) {
+    if (row.semaine_ref) {
+        return row.semaine_ref.trim();
+    }
+    if (row.dt) {
+        return row.dt.trim().split(' ')[0];
+    }
+    return null;
+}
+
+// --- STREAMING_CHUNK: CSV parser wrapper and field detection... ---
+// --- TRAITEMENT ET IMPORTATION DES FICHIERS ---
+function handleFileUpload(file, type) {
+    if (!file) return;
+    
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+            if (results.errors.length > 0 && results.data.length === 0) {
+                showNotification(`Erreur lors de la lecture du fichier ${type}: ${results.errors[0].message}`, 'error');
+                return;
+            }
+            
+            if (type === 'traffic') {
+                state.trafficRaw = results.data;
+                updateUploadUI('traffic', true, file.name);
+            } else if (type === 'fuel') {
+                state.fuelRaw = results.data;
+                detectFuelColumns(results.meta.fields);
+                updateUploadUI('fuel', true, file.name);
+            }
+            
+            showNotification(`Fichier de ${type === 'traffic' ? 'Trafic' : 'Carburant'} traité avec succès.`, 'success');
+            processAndRender();
+        }
+    });
+}
+
+// --- DETECTER LES COLONNES DU FICHIER CARBURANT ---
+function detectFuelColumns(headers) {
+    if (!headers || headers.length === 0) return;
+    
+    // Trouver la colonne semaine (ex: Semaine, Week)
+    const weekCol = headers.find(h => h.toLowerCase().includes('semaine') || h.toLowerCase().includes('week'));
+    
+    // Les autres colonnes sont des types de carburants
+    state.fuelColumns = headers.filter(h => h !== weekCol);
+    
+    // Mettre à jour le sélecteur HTML
+    const select = document.getElementById('select-fuel');
+    select.innerHTML = '';
+    
+    state.fuelColumns.forEach(col => {
+        const opt = document.createElement('option');
+        opt.value = col;
+        opt.innerText = col;
+        select.appendChild(opt);
+    });
+    
+    // Essayer de présélectionner le Gazole ou le SP95 par défaut
+    const defaultCol = state.fuelColumns.find(c => c.toLowerCase().includes('gazole') || c.toLowerCase().includes('sp95')) || state.fuelColumns[0];
+    if (defaultCol) {
+        state.selectedFuel = defaultCol;
+    }
+    select.value = state.selectedFuel;
+}
+
+// Mise à jour visuelle des zones de chargement
+function updateUploadUI(type, success, fileName) {
+    const zone = document.getElementById(`drop-${type}`);
+    const icon = document.getElementById(`icon-status-${type}`);
+    const text = document.getElementById(`text-status-${type}`);
+    
+    if (success) {
+        zone.classList.remove('border-slate-200', 'hover:border-indigo-400', 'bg-slate-50');
+        zone.classList.add('border-emerald-500', 'bg-emerald-50/30');
+        
+        icon.className = "mx-auto h-8 w-8 text-emerald-500";
+        icon.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+        
+        text.innerHTML = `<span class="font-bold text-emerald-800">${fileName}</span><br/><span class="text-[10px] text-emerald-600 font-normal">Données prêtes</span>`;
+    }
+}
+
+// --- STREAMING_CHUNK: Processing data, mapping, and aligned aggregation... ---
+// --- ALGORITHME DE CORRELATION ET ALIGNEMENT DES DONNEES ---
+function processAndRender() {
+    if (state.trafficRaw.length === 0 || state.fuelRaw.length === 0) {
+        // En attente des deux sources
+        return;
+    }
+    
+    // 1. Réinitialiser les maps et profiles d'heures
+    state.trafficWeekMap = {};
+    state.hourlyProfile = Array(24).fill(0).map(() => ({ sum: 0, count: 0 }));
+    
+    // 2. Parcourir le trafic brut et agréger par semaine ISO
+    state.trafficRaw.forEach(row => {
+        const dtStr = row.dt;
+        if (!dtStr) return;
+        
+        const hour = getLocalHour(dtStr);
+        const q = parseInt(row.q, 10);
+        
+        if (hour !== null && !isNaN(q)) {
+            // Cumuler les données pour le profil journalier global
+            state.hourlyProfile[hour].sum += q;
+            state.hourlyProfile[hour].count += 1;
+            
+            // Si l'heure fait partie des heures de pointe sélectionnées
+            if (state.peakHours.includes(hour)) {
+                const dateStr = getLocalDateString(row);
+                if (dateStr) {
+                    const parsedDate = new Date(dateStr + 'T00:00:00Z'); // Forcer UTC pour éviter les décalages de fuseau
+                    const weekISO = getISOWeekFromUTCDate(parsedDate);
+                    
+                    if (weekISO) {
+                        if (!state.trafficWeekMap[weekISO]) {
+                            state.trafficWeekMap[weekISO] = { sum: 0, count: 0 };
+                        }
+                        state.trafficWeekMap[weekISO].sum += q;
+                        state.trafficWeekMap[weekISO].count += 1;
+                    }
+                }
+            }
+        }
+    });
+
+    // 3. Extraire les données carburants
+    const fuelWeekMap = {};
+    const fuelKeys = Object.keys(state.fuelRaw[0] || {});
+    const semaineKey = fuelKeys.find(k => k.toLowerCase().includes('semaine') || k.toLowerCase().includes('week')) || 'Semaine';
+    
+    state.fuelRaw.forEach(row => {
+        const wk = row[semaineKey];
+        if (!wk) return;
+        
+        const price = parseFloat(row[state.selectedFuel]);
+        if (!isNaN(price)) {
+            // Format uniforme de la semaine (ex: 2026-W01)
+            fuelWeekMap[wk.trim()] = price;
+        }
+    });
+
+    // 4. Alignement rigoureux des deux jeux de données par semaine chronologique
+    const allWeeks = Array.from(new Set([
+        ...Object.keys(state.trafficWeekMap),
+        ...Object.keys(fuelWeekMap)
+    ])).sort(); // Assure un tri chronologique strict de Janvier à Juillet
+    
+    state.alignedData = [];
+    allWeeks.forEach(wk => {
+        const trafficObj = state.trafficWeekMap[wk];
+        const fuelPrice = fuelWeekMap[wk];
+        
+        // On n'enregistre que si on possède du trafic ET une donnée de prix pour cette semaine
+        if (trafficObj && trafficObj.count > 0 && fuelPrice !== undefined) {
+            const avgTraffic = Math.round(trafficObj.sum / trafficObj.count);
+            state.alignedData.push({
+                week: wk,
+                traffic: avgTraffic,
+                fuel: fuelPrice
+            });
+        }
+    });
+
+    // Gestion de l'affichage de l'interface
+    const placeholder = document.getElementById('chart-placeholder');
+    const tableCard = document.getElementById('table-card');
+    
+    if (state.alignedData.length > 0) {
+        if (placeholder) placeholder.classList.add('hidden');
+        if (tableCard) tableCard.classList.remove('hidden');
+    } else {
+        if (placeholder) placeholder.classList.remove('hidden');
+        if (tableCard) tableCard.classList.add('hidden');
+        showNotification("Aucune correspondance de semaine trouvée entre les deux fichiers CSV. Vérifiez l'alignement des dates (ex: 2026-W01 et date 2026-01-05).", "error");
+        return;
+    }
+
+    // Adapter la largeur du conteneur avant de rendre
+    adjustChartDimensions();
+
+    // 5. Rendu des graphiques & analyses
+    renderComparisonChart();
+    renderHourlyProfileChart();
+    calculateAndShowCorrelation();
+    renderAlignedTable();
+}
+
+// --- STREAMING_CHUNK: Instantiating the robust dual-axis line chart... ---
+// --- RENDU DU GRAPHIQUE COMPARATIF DOUBLE AXE Y ---
+function renderComparisonChart() {
+    const ctx = document.getElementById('chart-comparison').getContext('2d');
+    
+    // Détruire l'instance précédente proprement
+    if (state.charts.comparison) {
+        state.charts.comparison.destroy();
+    }
+    
+    const labels = state.alignedData.map(d => d.week);
+    const trafficDataset = state.alignedData.map(d => d.traffic);
+    const fuelDataset = state.alignedData.map(d => d.fuel);
+    
+    state.charts.comparison = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Trafic Moyen (véh/h)',
+                    data: trafficDataset,
+                    borderColor: 'rgb(79, 70, 229)', // indigo-600
+                    backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                    borderWidth: 3,
+                    pointBackgroundColor: 'rgb(79, 70, 229)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.3,
+                    fill: true,
+                    yAxisID: 'yTraffic'
+                },
+                {
+                    label: `Prix du ${state.selectedFuel}`,
+                    data: fuelDataset,
+                    borderColor: 'rgb(244, 63, 94)', // rose-500
+                    backgroundColor: 'rgba(244, 63, 94, 0.03)',
+                    borderWidth: 3,
+                    pointBackgroundColor: 'rgb(244, 63, 94)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.15,
+                    fill: false,
+                    yAxisID: 'yFuel'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    display: false // Géré de manière personnalisée par les libellés HTML au-dessus
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#f1f5f9',
+                    padding: 12,
+                    boxPadding: 6,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ' : ';
+                            }
+                            if (context.datasetIndex === 0) {
+                                label += context.parsed.y + ' véh/h';
+                            } else {
+                                label += context.parsed.y.toFixed(3) + ' €/L';
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(241, 245, 249, 1)',
+                    },
+                    ticks: {
+                        color: '#64748b',
+                        font: {
+                            weight: 600,
+                            size: 11
+                        }
+                    }
+                },
+                yTraffic: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Trafic Moyen Heures de Pointe (Véhicules / h)',
+                        color: 'rgb(79, 70, 229)',
+                        font: {
+                            weight: 'bold',
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(241, 245, 249, 1)'
+                    },
+                    ticks: {
+                        color: 'rgb(79, 70, 229)',
+                        font: {
+                            weight: 600
+                        }
+                    }
+                },
+                yFuel: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Prix du Carburant (€ / Litre)',
+                        color: 'rgb(244, 63, 94)',
+                        font: {
+                            weight: 'bold',
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        drawOnChartArea: false // Empêche l'affichage d'une grille redondante
+                    },
+                    ticks: {
+                        color: 'rgb(244, 63, 94)',
+                        font: {
+                            weight: 600
+                        },
+                        callback: function(value) {
+                            return value.toFixed(2) + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// --- STREAMING_CHUNK: Drawing side stats hourly profile... ---
+// --- CONSTRUIRE LE GRAPH DE PROFIL HORAIRE GENERAL ---
+function renderHourlyProfileChart() {
+    const ctx = document.getElementById('chart-hourly-profile').getContext('2d');
+    
+    if (state.charts.hourlyProfile) {
+        state.charts.hourlyProfile.destroy();
+    }
+    
+    const labels = Array(24).fill(0).map((_, i) => `${i}h`);
+    const data = state.hourlyProfile.map(item => item.count > 0 ? Math.round(item.sum / item.count) : 0);
+    
+    // Différencier visuellement les heures comptabilisées comme pointes
+    const borderColors = labels.map((_, h) => state.peakHours.includes(h) ? 'rgb(79, 70, 229)' : 'rgba(148, 163, 184, 0.4)');
+    const bgColors = labels.map((_, h) => state.peakHours.includes(h) ? 'rgba(79, 70, 229, 0.7)' : 'rgba(148, 163, 184, 0.15)');
+    
+    state.charts.hourlyProfile = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: bgColors,
+                borderColor: borderColors,
+                borderWidth: 1.5,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Moyenne : ${context.parsed.y} véhicules/h`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: '#64748b',
+                        font: {
+                            size: 9
+                        }
+                    }
+                },
+                y: {
+                    grid: {
+                        color: 'rgba(241, 245, 249, 0.8)'
+                    },
+                    ticks: {
+                        color: '#94a3b8',
+                        font: {
+                            size: 9
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// --- STREAMING_CHUNK: Pearson correlation logic formulation... ---
+// --- CALCUL DU COEFFICIENT DE CORRÉLATION DE PEARSON ---
+function calculateAndShowCorrelation() {
+    const x = state.alignedData.map(d => d.traffic);
+    const y = state.alignedData.map(d => d.fuel);
+    const n = x.length;
+    
+    const corrValEl = document.getElementById('corr-value');
+    const corrLabelEl = document.getElementById('corr-label');
+    const corrExpEl = document.getElementById('corr-explanation');
+    
+    if (n < 2) {
+        corrValEl.innerText = "- - -";
+        corrLabelEl.innerText = "Données insuffisantes";
+        corrExpEl.innerText = "Il faut au moins 2 semaines communes pour pouvoir calculer l'indice.";
+        return;
+    }
+    
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((sum, val, i) => sum + val * y[i], 0);
+    const sumX2 = x.reduce((sum, val) => sum + val * val, 0);
+    const sumY2 = y.reduce((sum, val) => sum + val * val, 0);
+    
+    const num = n * sumXY - sumX * sumY;
+    const den = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+    
+    let r = 0;
+    if (den !== 0) {
+        r = num / den;
+    }
+    
+    // Affichage stylisé
+    corrValEl.innerText = r.toFixed(3);
+    
+    const displayBox = document.getElementById('correlation-display');
+    displayBox.className = "py-3 px-4 rounded-xl flex flex-col items-center justify-center text-center transition-all ";
+    
+    let interpretLabel = "";
+    let explanation = "";
+    
+    if (r > 0.6) {
+        displayBox.classList.add('bg-emerald-50', 'text-emerald-800');
+        corrValEl.className = "text-2xl font-black text-emerald-600";
+        interpretLabel = "Forte Corrélation Positive";
+        explanation = `Le trafic aux heures de pointe et le prix du carburant évoluent de concert (r = ${r.toFixed(2)}). Cela indique une résilience de l'usage automobile face aux hausses tarifaires (pas d'alternative de transport par exemple).`;
+    } else if (r < -0.6) {
+        displayBox.classList.add('bg-rose-50', 'text-rose-800');
+        corrValEl.className = "text-2xl font-black text-rose-600";
+        interpretLabel = "Forte Corrélation Négative";
+        explanation = `Le trafic s'affaisse nettement lorsque les prix du carburant augmentent (r = ${r.toFixed(2)}). Il y a un fort effet élastique sur la mobilité de pointe !`;
+    } else if (r >= -0.6 && r <= -0.2) {
+        displayBox.classList.add('bg-amber-50', 'text-amber-800');
+        corrValEl.className = "text-2xl font-black text-amber-600";
+        interpretLabel = "Légère baisse du trafic";
+        explanation = `Une légère réduction de l'utilisation de l'automobile se fait sentir lors des hausses (r = ${r.toFixed(2)}), mais les habitudes de trajet restent assez rigides.`;
+    } else if (r >= 0.2 && r <= 0.6) {
+        displayBox.classList.add('bg-sky-50', 'text-sky-800');
+        corrValEl.className = "text-2xl font-black text-sky-600";
+        interpretLabel = "Légère hausse du trafic";
+        explanation = `Une augmentation modérée du trafic coïncide statistiquement avec les hausses de carburant (r = ${r.toFixed(2)}). D'autres facteurs saisonniers sont sans doute prédominants.`;
+    } else {
+        displayBox.classList.add('bg-slate-100', 'text-slate-800');
+        corrValEl.className = "text-2xl font-black text-slate-600";
+        interpretLabel = "Absence de Corrélation";
+        explanation = `Aucun lien statistique évident (r = ${r.toFixed(2)}). Les automobilistes effectuent leurs trajets indispensables de pointe, peu importe le prix de l'essence.`;
+    }
+    
+    corrLabelEl.innerText = interpretLabel;
+    corrExpEl.innerText = explanation;
+}
+
+// --- STREAMING_CHUNK: Processing data table render... ---
+// --- CONSTRUIRE LA TABLE DES MATIERES CONSOLIDEE ---
+function renderAlignedTable() {
+    const tbody = document.getElementById('table-aligned-body');
+    const thFuel = document.getElementById('th-fuel-header');
+    
+    thFuel.innerText = `Prix ${state.selectedFuel}`;
+    tbody.innerHTML = '';
+    
+    state.alignedData.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors";
+        
+        let evolText = "-";
+        let evolClass = "text-slate-400";
+        
+        if (idx > 0) {
+            const prevTraf = state.alignedData[idx - 1].traffic;
+            if (prevTraf > 0) {
+                const diff = ((row.traffic - prevTraf) / prevTraf) * 100;
+                evolText = (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%';
+                evolClass = diff >= 0 ? 'text-emerald-600 font-semibold' : 'text-rose-600 font-semibold';
+            }
+        }
+        
+        tr.innerHTML = `
+            <td class="p-3 font-semibold text-slate-800">${row.week}</td>
+            <td class="p-3">${row.traffic.toLocaleString()} véh/h</td>
+            <td class="p-3 text-xs ${evolClass}">${evolText}</td>
+            <td class="p-3 font-medium text-slate-900">${row.fuel.toFixed(3)} €/L</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Exporter les données consolidées en fichier CSV
+function exportAlignedToCSV() {
+    if (state.alignedData.length === 0) return;
+    
+    let csvContent = `Semaine,Moyenne_Trafic_Heures_Pointe,Prix_Carburant_${state.selectedFuel.replace(/ /g, '_')}\n`;
+    state.alignedData.forEach(d => {
+        csvContent += `${d.week},${d.traffic},${d.fuel}\n`;
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `synthese_carburant_trafic_${state.selectedFuel.replace(/ /g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// --- STREAMING_CHUNK: Dynamic January to July generator algorithm... ---
+// --- GENERATEUR DE DONNEES DE DEMONSTRATION COMPLETE (JANVIER A JUILLET) ---
+function loadDemoDataJanToJuly() {
+    showNotification("Génération d'un jeu de données s'étalant de Janvier à Juillet...", "info");
+    
+    // 1. Liste des semaines de Janvier à Juillet 2026 (W01 à W26)
+    const weeksList = [
+        { iso: "2026-W01", start: "2025-12-29", basePrice: 1.710 },
+        { iso: "2026-W02", start: "2026-01-05", basePrice: 1.705 },
+        { iso: "2026-W03", start: "2026-01-12", basePrice: 1.725 },
+        { iso: "2026-W04", start: "2026-01-19", basePrice: 1.740 },
+        { iso: "2026-W05", start: "2026-01-26", basePrice: 1.785 },
+        { iso: "2026-W06", start: "2026-02-02", basePrice: 1.840 },
+        { iso: "2026-W07", start: "2026-02-09", basePrice: 1.895 },
+        { iso: "2026-W08", start: "2026-02-16", basePrice: 1.930 }, // Pic de prix
+        { iso: "2026-W09", start: "2026-02-23", basePrice: 1.915 },
+        { iso: "2026-W10", start: "2026-03-02", basePrice: 1.880 },
+        { iso: "2026-W11", start: "2026-03-09", basePrice: 1.835 },
+        { iso: "2026-W12", start: "2026-03-16", basePrice: 1.790 },
+        { iso: "2026-W13", start: "2026-03-23", basePrice: 1.745 },
+        { iso: "2026-W14", start: "2026-03-30", basePrice: 1.710 },
+        { iso: "2026-W15", start: "2026-04-06", basePrice: 1.685 },
+        { iso: "2026-W16", start: "2026-04-13", basePrice: 1.690 },
+        { iso: "2026-W17", start: "2026-04-20", basePrice: 1.720 },
+        { iso: "2026-W18", start: "2026-04-27", basePrice: 1.750 },
+        { iso: "2026-W19", start: "2026-05-04", basePrice: 1.785 },
+        { iso: "2026-W20", start: "2026-05-11", basePrice: 1.820 },
+        { iso: "2026-W21", start: "2026-05-18", basePrice: 1.860 },
+        { iso: "2026-W22", start: "2026-05-25", basePrice: 1.905 },
+        { iso: "2026-W23", start: "2026-06-01", basePrice: 1.940 }, // Deuxième pic
+        { iso: "2026-W24", start: "2026-06-08", basePrice: 1.910 },
+        { iso: "2026-W25", start: "2026-06-15", basePrice: 1.865 },
+        { iso: "2026-W26", start: "2026-06-22", basePrice: 1.810 },
+        { iso: "2026-W27", start: "2026-06-29", basePrice: 1.780 }
+    ];
+
+    // 2. Générer le CSV carburants de démo
+    let fuelCSV = "Semaine,Gazole (EUR/L),SP95 (EUR/L),SP98 (EUR/L),E10 (EUR/L),E85 (EUR/L),GPLc (EUR/L)\n";
+    weeksList.forEach(w => {
+        const gz = w.basePrice;
+        const sp95 = gz + 0.08;
+        const sp98 = gz + 0.16;
+        const e10 = gz + 0.04;
+        const e85 = gz - 0.90;
+        const gpl = 0.985;
+        fuelCSV += `${w.iso},${gz.toFixed(3)},${sp95.toFixed(3)},${sp98.toFixed(3)},${e10.toFixed(3)},${e85.toFixed(3)},${gpl.toFixed(3)}\n`;
+    });
+
+    // 3. Générer le CSV trafic de démo
+    // Pour simuler de l'élasticité : lorsque le prix augmente, le volume de trafic diminue.
+    let trafficCSV = "count_point_id,dt,q,semaine_ref\n";
+    
+    weeksList.forEach(w => {
+        const baseDate = new Date(w.start + 'T00:00:00Z');
+        
+        // Facteur élastique négatif de la demande (prix haut = trafic bas)
+        // Prix max de 1.94 -> trafic réduit à 83%. Prix min de 1.68 -> trafic à 102%
+        const priceDeviation = w.basePrice - 1.70; // Écart au prix plancher
+        const demandFactor = Math.max(0.80, 1.02 - (priceDeviation * 0.7)); 
+
+        // Pour chaque jour de la semaine
+        for (let d = 0; d < 7; d++) {
+            const currentDay = new Date(baseDate.getTime());
+            currentDay.setUTCDate(baseDate.getUTCDate() + d);
+            const dateStr = currentDay.toISOString().split('T')[0];
+            
+            // Pour chaque heure (simulation de l'histogramme de fréquentation journalier)
+            for (let h = 0; h < 24; h++) {
+                const hourStr = String(h).padStart(2, '0');
+                let baseFlow = 100;
+                
+                if ([7, 8, 9].includes(h)) {
+                    // Pic du matin
+                    baseFlow = (950 + Math.sin(d) * 60) * demandFactor;
+                } else if ([16, 17, 18].includes(h)) {
+                    // Pic du soir
+                    baseFlow = (1080 + Math.cos(d) * 80) * demandFactor;
+                } else if (h >= 10 && h <= 15) {
+                    // Trafic de journée (Heures creuses)
+                    baseFlow = 450 + Math.random() * 80;
+                } else {
+                    // Trafic nocturne
+                    baseFlow = 50 + Math.random() * 50;
+                }
+                
+                // On ajoute un faible bruit aléatoire et on arrondit
+                const finalFlow = Math.max(10, Math.round(baseFlow + (Math.random() - 0.5) * 30));
+                trafficCSV += `6552,${dateStr} ${hourStr}:00:00+01:00,${finalFlow},${w.start}\n`;
+            }
+        }
+    });
+
+    // 4. Parser les deux chaînes construites en mémoire avec PapaParse
+    Papa.parse(trafficCSV, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(tResults) {
+            state.trafficRaw = tResults.data;
+            updateUploadUI('traffic', true, 'Demo_Trafic_Jan_Jul_6552.csv');
+            
+            Papa.parse(fuelCSV, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(fResults) {
+                    state.fuelRaw = fResults.data;
+                    detectFuelColumns(fResults.meta.fields);
+                    updateUploadUI('fuel', true, 'Demo_Carburants_Jan_Jul_2026.csv');
+                    
+                    showNotification("Succès : Données Janvier-Juillet chargées ! Faites défiler le graphique horizontalement pour observer l'évolution complète.", "success");
+                    processAndRender();
+                }
+            });
+        }
+    });
+}
+</script>
+</body>
+</html>
